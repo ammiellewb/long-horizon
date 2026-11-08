@@ -1,5 +1,15 @@
 # Configuration for TextQuests experiments
 openrouter:
+  # MODEL IDENTITY — single source of truth. runner.resolve_model() resolves the
+  # id with this precedence, highest first:
+  #   1. OPENROUTER_MODEL env var   (the operator's override for one process)
+  #   2. openrouter.model below     (the checked-in default)
+  # Both OPENROUTER_MODEL and INSPECT_EVAL_MODEL (which configures inspect-ai,
+  # not this runner) are cross-checked against this value whatever their
+  # precedence: if any of them names a different model the run ABORTS with
+  # ModelConfigError. There is no default and no fallback — a missing id is also
+  # a hard error. The resolved id and its source are written into every run log
+  # (summary.model / summary.model_source).
   model: "anthropic/claude-sonnet-5"
   base_url: "https://openrouter.ai/api/v1"
   request_timeout: 60
@@ -9,6 +19,22 @@ experiments:
   accepted_local_error_k: 3
   info_seek_window: 10
   games: ["zork1", "wishbringer"]
+
+  # Hard stops, recorded in summary.stop_reason (see logger.STOP_REASONS)
+  max_total_tokens: null    # cost cap: stop at this many cumulative tokens -> 'cost_cap'. null = off
+  max_invalid_actions: 10   # consecutive unusable model responses before 'invalid_action_cap'. null = off
+
+  # Rolling-window context truncation (truncation, NOT summarization — the M2
+  # memory mechanism is ablated separately and must stay the only memory help).
+  context:
+    window_tokens: null     # the model's own context window, in tokens.
+                            # REQUIRED for proactive truncation; null = reactive
+                            # overflow recovery only. Set it to the window of the
+                            # model named above (it is model-specific, so there is
+                            # deliberately no default to get silently wrong).
+    output_reserve: 288     # tokens held back for one turn's output (~1.5 x the 192 step cap)
+    budget_tokens: null     # absolute budget override; wins over window_tokens - output_reserve
+    max_overflow_rounds: 8  # evict-and-retry rounds before giving up with 'context_exhausted'
 
   # Composite drift detector: stagnation + behavioral loops + reasoning coherence
   drift:
